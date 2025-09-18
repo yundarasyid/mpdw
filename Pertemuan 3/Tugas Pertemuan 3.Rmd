@@ -1,0 +1,217 @@
+---
+title: "Tugas Pertemuan 3"
+author: "Ayunda Rasyid Khairunnisa"
+date: "2025-09-15"
+output: html_document
+---
+
+# Regresi dengan Peubah Lag
+
+## Package
+```{r, echo=FALSE}
+library(dLagM)
+library(dynlm)
+library(MLmetrics)
+library(lmtest)
+library(car)
+```
+
+## Import Data
+```{r}
+data <- rio::import("C:\\Ayunda\\Kuliah\\Sem 5\\MPDW\\NewDelhi_Air_quality.csv")
+str(data)
+```
+
+```{r}
+data
+```
+
+## Pembagaian Data
+
+```{r}
+#SPLIT DATA
+train<-data[1:58,]
+test<-data[59:72,]
+```
+
+```{r}
+#data time series
+train.ts<-ts(train)
+test.ts<-ts(test)
+data.ts<-ts(data)
+```
+
+## Pemodelan
+
+```{r}
+#MODEL KOYCK
+model.koyck <- koyckDlm(x = train$CO, y = train$AQI)
+summary(model.koyck)
+```
+```{r}
+AIC(model.koyck)
+```
+```{r}
+BIC(model.koyck)
+```
+Dari hasil tersebut didapat bahwa perubah Xt memiliki nilai p-value = 0,957(>0,05) sehingga tidak berpengaruh signifikan terhadap Y. Sebaliknya, peubah Yt-1 memiliki nilai p-value < 0,05, sehingga dapat disimpulkan bahwa Yt-1 berpengaruh signifikan terhadap Y.
+
+Adapun model keseluruhannya :
+Yt_hat = 1,6501 + 0,0031Xt + 0,9119Yt-1
+
+## Peramalan dan Akurasi
+```{r}
+fore.koyck <- forecast(model = model.koyck, x=test$CO, h=14)
+fore.koyck
+```
+
+```{r}
+mape.koyck <- MAPE(fore.koyck$forecasts, test$AQI)
+mape.koyck #data test
+```
+```{r}
+#akurasi data training
+GoF(model.koyck)
+```
+## Regression with Distributed Lag
+### Pemodelan (Lag=2)
+```{r}
+model.dlm <- dlm(x = train$CO,y = train$AQI , q = 1)
+summary(model.dlm)
+```
+```{r}
+AIC(model.dlm)
+```
+```{r}
+BIC(model.dlm)
+```
+Dari hasil diatas, didapat bahwa p-value dari intersept dan Xt <0,05. Hal ini menunjukkan bahwa intercept dan Xt berpengaruh signifikan terhadap Y. Semenyata itu, peubah Xt-1 memiliki p-value = 0,679569(>0,05), sehingga tidak berpengaruh signifikan terhadap Y.
+
+Model keseluruhan yang terbentuk:
+Yt_hat = -51,2926 + 0,4432Xt - 0,0543Xt-1
+
+## Peramalan dan Akurasi
+Berikut merupakan hasil peramalan y untuk 14 periode kedepan
+```{r}
+fore.dlm <- forecast(model = model.dlm, x=test$CO, h=14)
+fore.dlm
+```
+
+```{r}
+mape.dlm <- MAPE(fore.dlm$forecasts, test$AQI)
+mape.dlm
+```
+```{r}
+GoF(model.dlm)
+```
+
+## Lag Optimum
+```{r}
+#penentuan lag optimum 
+finiteDLMauto(formula = AQI ~ CO,
+              data = data.frame(train), q.min = 1, q.max = 10,
+              model.type = "dlm", error.type = "AIC", trace = TRUE)
+```
+Berdasarkan output tersebut, lag optimum didapatkan ketika lag=10. Selanjutnya dilakukan pemodelan untuk lag=10
+
+```{r}
+#model dlm dengan lag optimum
+model.dlm2 <- dlm(x = train$CO,y = train$AQI , q = 10)
+summary(model.dlm2)
+```
+```{r}
+AIC(model.dlm2)
+```
+```{r}
+BIC (model.dlm2)
+```
+Dari hasil tersebut terdapat beberapa peubah yang berpengaruh signifikan terhadap taraf nyata 5% yaitu intercept dn Xt. Sementara itu, peubah lag Xt-1 sampaidengan Xt-10 memiliki nilai p-value > 0,05 sehingga tidak berpengaruh signifikan terhadap Y.
+
+Keseluruhan model yang terbentuk:
+Yt_hat = -58,80864 + 0,49080Xt + 0,014926Xt-1 - 0,12857Xt-2 + 0,15065Xt−3 − 0,02252Xt−4 − 0,24536Xt−5 + 0,12244Xt−6 − 0,04624Xt−7 − 0,06643Xt−8 − 0,04978Xt−9 + 0,07431Xt−10
+
+Nilai R^2 = 0,8723 menunjukan bahwa model mampu menjelaskan sekitar 87,23% variasi pada Yt. Selain itu, nilai AIC = 136,4031 dan BIC = 160,7288 dapat digunakan sebagai kriteria pembandinh dengan mudel lain.
+
+```{r}
+#peramalan dan akurasi
+fore.dlm2 <- forecast(model = model.dlm2, x=test$CO, h=14)
+
+#akurasi data test
+mape.dlm2<- MAPE(fore.dlm2$forecasts, test$AQI)
+mape.dlm2
+```
+```{r}
+#akurasi data training
+GoF(model.dlm2)
+```
+Model tersebut merupakan model yang sangat baik dengan nilai MAPE = 1.99%, yang berada di bawah 10%. Hal ini menunjukkan bahwa model memiliki tingkat kesalahan peramalan yang sangat kecil dan mampu memberikan prediksi yang akurat.
+
+## Model Autoregressive
+### Pemodelan
+
+```{r}
+model.ardl <- ardlDlm(x = train$CO, y = train$AQI, p = 1 , q = 1)
+summary(model.ardl)
+```
+```{r}
+AIC(model.ardl)
+```
+```{r}
+BIC(model.ardl)
+```
+```{r}
+model.ardl <- ardlDlm(formula = AQI ~ CO, 
+                         data = train,p = 1 , q = 1)
+summary(model.ardl)
+```
+```{r}
+AIC(model.ardl)
+```
+```{r}
+BIC(model.ardl)
+```
+Hasil di atas menunjukkan bahwa selain peubah Xt-1₁, hasil uji t memberikan nilai-p < 0,05 pada peubah Xt dan Yt-1. Hal ini menunjukkan bahwa Xt, Xt-1, dan Yt-1 berpengaruh signifikan terhadap Yt, sedangkan intercept tidak signifikan karena nilai-p > 0,05.
+
+Model keseluruhannya adalah sebagai berikut:
+
+Yt_hat = −6,4841 + 0,2336Xt − 0,1824Xt-1 + 0,8541Yt-1
+
+### Peramalan dan Akurasi
+```{r}
+fore.ardl <- forecast(model = model.ardl, x=test$CO, h=14)
+fore.ardl
+```
+Data di atas merupakan hasil peramalan untuk 14 periode ke depan menggunakan Model Autoregressibe denga p=1 dan q=1.
+
+```{r}
+mape.ardl <- MAPE(fore.ardl$forecasts, test$AQI)
+mape.ardl
+```
+```{r}
+#akurasi data training
+GoF(model.ardl)
+```
+Berdasarkan akurasi di atas, terlihat bahwa nilai MAPE sebesar 2.50% relatif kecil. Artinya, model regresi dengan distribusi lag ini tidak mengalami masalah overfitted maupun underfitted, sehingga dapat dikatakan model mampu melakukan peramalan dengan baik.
+
+### Lag Optimum
+```{r}
+#penentuan lag optimum
+model.ardl.opt <- ardlBoundOrders(data = data.frame(data), ic = "AIC", 
+                                  formula = AQI ~ CO )
+model.ardl.opt
+```
+```{r}
+min_p=c()
+for(i in 1:6){
+  min_p[i]=min(model.ardl.opt$Stat.table[[i]])
+}
+q_opt=which(min_p==min(min_p, na.rm = TRUE))
+p_opt=which(model.ardl.opt$Stat.table[[q_opt]] == 
+              min(model.ardl.opt$Stat.table[[q_opt]], na.rm = TRUE))
+data.frame("q_optimum" = q_opt, "p_optimum" = p_opt, 
+           "AIC"=model.ardl.opt$min.Stat)
+```
+Dari tabel di atas, dapat terlihat bahwa nilai AIC terendah didapat ketika p = 15 dan q = 6, yaitu sebesar 121,7055. Artinya, model autoregressive optimum diperoleh ketika p = 15 dan q = 6.
+
+## Kesimpulan 
+Berdasarkan hasil perbandingan, model Distributed Lag dengan lag optimum (q = 10) memberikan kinerja terbaik, ditunjukkan oleh nilai MAPE sebesar 1,99% (<10%) serta nilai R² yang tinggi (0,8723). Dengan demikian, model ini paling sesuai digunakan untuk meramalkan AQI berdasarkan CO.
