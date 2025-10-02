@@ -1,0 +1,107 @@
+---
+title: "Tugas MPDW"
+author: "Ayunda Rasyid Khairunnisa"
+date: "2025-10-02"
+output: html_document
+---
+
+## Library
+```{r}
+library(ggplot2)
+library(tsibble)
+library(tseries)
+library(MASS)
+library(readxl)
+```
+
+# Observasi 181 - 360
+## Load Data
+```{r}
+data <- read_excel("C:/Ayunda/Kuliah/Sem 5/MPDW/Data MPDWW.xlsx")
+head(data)
+dim(data)
+```
+
+```{r}
+data
+```
+
+```{r}
+dt <- data$CO2[181:360] |> ts()
+mean(dt)
+```
+```{r}
+var(dt)
+```
+## Plot Time Series
+```{r}
+dt |> as_tsibble() |> 
+  ggplot(aes(x = index, y = value)) +
+  geom_line() + theme_bw() +
+  xlab("Obs") + ylab("Nilai")
+```
+Plot deret waktu di atas menunjukkan bahwa data tidak stasioner dalam rataan, ditandai dengan adanya tren meningkat sepanjang waktu. Namun data terlihat stasioner dalam ragam, ditandai dengan fluktuasi yang relatif konstan pada rentang nilai yang sama sepanjang waktu.
+
+```{r}
+acf(dt)
+```
+Berdasarkan plot ACF, terlihat bahwa plot ACF data tersebut tails off. Bisa dikatakan bahwa data non-stasioner
+
+```{r}
+tseries::adf.test(dt)
+```
+$H_0$ : Data tidak stasioner dalam rataan
+$H_1$ : Data stasioner dalam rataan
+Berdasarka uji ADF tersebut, terdapat p-value (0.01) < 0.05 artinya tolah H0.
+
+Berdasarkan eksplorasi grafik deret waktu dan plot ACF, terlihat adanya tren meningkat serta pola musiman yang berulang sehingga data dapat dikatakan tidak stasioner dalam rataan. Hal ini ditunjukkan oleh plot ACF yang tail-off .
+
+Namun, hasil uji formal menggunakan Augmented Dickey-Fuller (ADF) memberikan p-value < 0.05 sehingga secara statistik H0 ditolak dan data dianggap stasioner dalam rataan.
+.
+## Plot Box
+```{r}
+index <- seq(181, 360)
+
+# Box-Cox
+bc <- boxcox(
+  dt ~ index,
+  lambda = seq(-10, 6, by = 0.01)
+)
+```
+
+```{r}
+# Nilai lambda optimum (dibulatkan)
+lambda <- bc$x[which.max(bc$y)]
+lambda
+```
+```{r}
+# Selang kepercayaan 95% untuk lambda
+ci_lambda <- bc$x[bc$y > max(bc$y) - 0.5 * qchisq(0.95, 1)]
+
+# Batas bawah dan batas atas
+ci_lower <- min(ci_lambda)
+ci_upper <- max(ci_lambda)
+
+c(Batas_Bawah = ci_lower, Batas_Atas = ci_upper)
+```
+Gambar di atas menunjukkan nilai rounded value ($\lambda$
+) optimum sebesar 2.54 dan pada selang kepercayaan 95% nilai memiliki batas bawah -2.03  dan batas atas 6.00. Selang tersebut memuat nilai satu sehingga dapat dikatakan bahwa data stasioner dalam ragam dan tidak memerlukan transformasi Box-Cox lebih lanjut.
+
+## Diferencing
+```{r}
+# Differencing pertama pada postrend
+dt_diff1 <- diff(dt, differences = 1)
+
+# Plot hasil differencing
+ts.plot(dt_diff1,
+        main = "First-order Differencing dari CO2",
+        col = "blue", lwd = 2)
+```
+```{r}
+acf(dt_diff1)
+```
+```{r}
+adf.test(dt_diff1)
+```
+Berdasarkan hasil analisis, data deret waktu awal menunjukkan adanya tren sehingga bersifat non-stasioner. Hal ini terlihat dari plot yang memperlihatkan kenaikan nilai seiring waktu serta pola ACF yang menurun secara perlahan. Setelah dilakukan differencing orde 1, tren pada data berhasil dihilangkan dan fluktuasi data menjadi lebih stabil di sekitar rata-rata. Hasil uji ADF juga mendukung hal tersebut dengan nilai p-value sebesar 0.01 yang lebih kecil dari 0.05, sehingga hipotesis nol non-stasioner ditolak. Dengan demikian, dapat disimpulkan bahwa data sudah bersifat stasioner setelah dilakukan differencing orde 1, sehingga data telah siap untuk dimodelkan menggunakan ARIMA atau SARIMA.
+
